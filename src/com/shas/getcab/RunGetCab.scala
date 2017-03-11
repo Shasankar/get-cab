@@ -4,13 +4,16 @@ import org.apache.spark._
 import org.apache.spark.streaming._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.kafka._
+import org.apache.kafka.clients.producer.{ ProducerConfig, KafkaProducer, ProducerRecord }
+import scala.collection.immutable.HashMap
+import scala.collection.JavaConversions.mapAsJavaMap
 
 object RunGetCab {
   case class Location(lat: Float, long: Float)
 
   //function to update latest cptn state
-  def updateLoc(newLoc: Seq[Location], updtLoc: Option[Location]) = {
-    var latestLoc = newLoc.lastOption.getOrElse(updtLoc.get)
+  def updateLoc(newLoc: Seq[Location], oldLoc: Option[Location]) = {
+    var latestLoc = newLoc.lastOption.getOrElse(oldLoc.get)
     Some(latestLoc)
   }
 
@@ -54,14 +57,23 @@ object RunGetCab {
       }
     }
   }
-  
-  def writeNearestToKafka(distRdd: RDD[(String,String,Double)]) = {
-    distRdd.map{case (custId,cptnId,dist) => (custId,(cptnId,dist))}
-          .reduceByKey((a,b) => if(a._2 < b._2) a else b)
-          .collect()
-          .foreach(println(_))
+
+  def writeNearestToKafka(distRdd: RDD[(String, String, Double)],kafkaBrkrs: String,cptnCustTopics: String) = {
+    distRdd.map { case (custId, cptnId, dist) => (custId, (cptnId, dist)) }
+      .reduceByKey((a, b) => if (a._2 < b._2) a else b)
+      .foreachPartition(partition => {
+        val props = Map[String, Object](ProducerConfig.BOOTSTRAP_SERVERS_CONFIG -> kafkaBrkrs,
+                       ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.StringSerializer",
+                       ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG -> "org.apache.kafka.common.serialization.StringSerializer")
+        val producer = new KafkaProducer[String, String](props)
+        partition.foreach(record => {
+          val data = record.toString
+          val message = new ProducerRecord[String,String](cptnCustTopics,null,data)
+          producer.send(message)
+        })
+      })
   }
-  
+
   //main
   def main(args: Array[String]) {
     val Array(cptnTopics, custTopics, cptnCustTopics, kafkaBrkrs, chkPntFile, master) = parseArgs(args)
@@ -90,7 +102,7 @@ object RunGetCab {
 
     //calculate distance between each cust n cptn, get nearest cptn for each cust, write to kafka cptnCustTopics                             
     custLoc.transformWith(cptnLoc, getNearest _)
-            .foreachRDD(writeNearestToKafka _)
+      .foreachRDD(distRdd => writeNearestToKafka(distRdd,kafkaBrkrs,cptnCustTopics))
 
     //sort by distance 
 
