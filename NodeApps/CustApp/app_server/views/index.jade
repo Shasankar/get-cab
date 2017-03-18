@@ -1,0 +1,10 @@
+extends layout
+
+block content
+  h1= title
+  p Welcome Customer
+  form(name="get-a-car", method="post", action="/getCar")
+    input(type="text", name="id", placeholder="Customer Id")
+    input(type="text", name="lat", placeholder="Lattitude")
+    input(type="text", name="long", placeholder="Longitude")
+    input(type="submit", value="Get Me A Car")

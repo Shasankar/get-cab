@@ -1,0 +1,9 @@
+extends layout
+
+block content
+  div(ng-controller='cptnCtrl')
+    h1= title
+    p Welcome Captain # #[strong {{cptnId}}]
+    p Your location co-ordinates are #[strong {{location.lat}},{{location.long}}]
+    p(ng-show="!matchCombo.cust || !matchCombo.dist") Setting up ride..
+    p(ng-show="matchCombo.cust && matchCombo.dist") Customer no. #[strong {{matchCombo.cust}}] is #[strong {{matchCombo.dist}}] kms away

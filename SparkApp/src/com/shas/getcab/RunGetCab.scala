@@ -79,7 +79,7 @@ object RunGetCab {
     val Array(cptnTopics, custTopics, cptnCustTopics, kafkaBrkrs, chkPntFile, master) = parseArgs(args)
 
     val conf = new SparkConf().setAppName("GetCab").setMaster(master)
-    val ssc = new StreamingContext(conf, Seconds(60))
+    val ssc = new StreamingContext(conf, Seconds(30))
     ssc.checkpoint(chkPntFile)
     val kafkaParams = Map[String, String]("metadata.broker.list" -> kafkaBrkrs)
 
